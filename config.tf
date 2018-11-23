@@ -26,28 +26,46 @@ resource "aws_security_group" "web-node-secgroup" {
 		to_port = 0
 		protocol = "-1"
 		cidr_blocks = ["0.0.0.0/0"]
-	}
-
-    
+	}   
 }resource "aws_key_pair" "my-key" {
   key_name   = "my-key"
   public_key = "${file("~/.ssh/id_rsa.pub")}"
 }
 
-
+#data "aws_ami_ids" "ubuntu" {
+  #owners = ["099720109477"]
+	
+ # filter {
+  #  name   = "name"
+   # values = ["ubuntu/images/ubuntu-*-*-amd64-server-*"]
+		#image_id = "ami-06b5810be11add0e2"
+	
+  #}
+#}
 resource "aws_instance" "web-node" {
-    count = 3
+  count = "${var.web_server_count}"
 	ami = "ami-06b5810be11add0e2"
-	instance_type = "t2.micro"
+	#ami = "${data.aws_ami_ids.ubuntu.ids[0]}"
+	instance_type = "${var.web_server_instance_type}"
 	key_name = "${aws_key_pair.my-key.key_name}"
 	security_groups = ["${aws_security_group.web-node-secgroup.name}"]
     private_ip = "${var.web_server_private_ips[count.index]}"
-    associate_public_ip_address = true
+    associate_public_ip_address = "${var.web_server_public_ip}"
     tags{ 
-        name = "${format("web-node-%02d", count.index + 1)}"
+        name = "${format("${var.web_server_name_prefix}-%02d-${var.web_server_name_suffix}", count.index + 1)}"
     }
-}
+
+		provisioner "remote-exec" {
+			inline = [
+				"sudo sleep 60",
+				"sudo apt-get update",
+				"sudo apt-get install Nginx -y",
+				"sudo service nginx start"
+			]
+			}
+	}
 
 output "instance_publicip" {
   value = "${aws_instance.web-node.*.public_ip}"
+	value = "${aws_instance.web-node.*.tags}"
 }
